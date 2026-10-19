@@ -1,0 +1,10 @@
+# One fact per line. Add your own lines to teach the assistant new things.
+LangGraph builds workflows using state, nodes, and edges.
+Sentence embeddings represent text as vectors that capture meaning.
+RAG retrieves relevant documents before generating an answer.
+LangChain connects language models to prompts, tools, retrievers, and your data.
+LangGraph gives explicit control over which step runs next and supports saved state through checkpoints.
+A LangGraph node is a function that performs one step and returns a state update.
+A LangGraph edge connects nodes and decides which node runs next.
+LangSmith traces prompts, model responses, tool calls, and timing, and evaluates output quality on test datasets.
+LangChain agents use LangGraph underneath, and LangSmith can work with either one.

@@ -1,0 +1,20 @@
+# LangGraph workflow
+langgraph>=1,<2
+
+# Groq chat models, including GPT-OSS
+langchain-groq>=1,<2
+
+# Sentence Transformer embeddings
+langchain-huggingface>=1,<2
+sentence-transformers>=5,<6
+
+# Vector store and shared LangChain interfaces
+langchain-core>=1,<2
+
+# TypedDict used in the example
+typing-extensions>=4.12,<5
+
+# Web backend
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-dotenv>=1.0

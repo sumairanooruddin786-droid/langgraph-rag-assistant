@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LangGraph RAG Assistant</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕸️</text></svg>">
+<style>
+  :root { --bg:#f4f8f9; --card:#fff; --ink:#12263a; --muted:#5b6b7a; --teal:#1b998b; --amber:#f4a300; --line:#dbe5ea; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:Calibri,Segoe UI,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--ink); color:#fff; padding:28px 20px; text-align:center; }
+  header h1 { margin:0 0 6px; font-family:Cambria,Georgia,serif; font-size:30px; }
+  header p { margin:0; color:#b9cad6; }
+  main { max-width:760px; margin:24px auto; padding:0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:18px; box-shadow:0 2px 8px rgba(18,38,58,.05); }
+  .flow { display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; }
+  .step { padding:8px 16px; border-radius:20px; border:2px solid var(--line); color:var(--muted); font-weight:600; transition:.25s; }
+  .step.active { border-color:var(--amber); color:var(--ink); background:#fff6dc; }
+  .step.done { border-color:var(--teal); color:#fff; background:var(--teal); }
+  .arrow { color:var(--muted); }
+  textarea { width:100%; min-height:84px; padding:12px; font:inherit; border:1px solid var(--line); border-radius:10px; resize:vertical; }
+  textarea:focus { outline:2px solid var(--teal); }
+  .row { display:flex; justify-content:space-between; align-items:center; margin-top:10px; gap:10px; flex-wrap:wrap; }
+  button { background:var(--teal); color:#fff; border:0; padding:10px 22px; border-radius:10px; font:600 16px inherit; cursor:pointer; }
+  button:disabled { opacity:.55; cursor:wait; }
+  .chip { background:none; color:var(--teal); border:1px solid var(--teal); padding:5px 12px; font-size:14px; margin:0 6px 6px 0; border-radius:16px; }
+  h2 { margin:0 0 10px; font-size:17px; font-family:Cambria,Georgia,serif; }
+  .answer { font-size:17px; line-height:1.55; white-space:pre-wrap; }
+  .source { background:var(--bg); border-radius:8px; padding:9px 12px; margin-bottom:8px; font-size:15px; color:var(--muted); }
+  .error { color:#b3261e; }
+  .status { font-size:14px; color:var(--muted); }
+  [hidden] { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>LangGraph RAG Assistant</h1>
+  <p>Ask a question. The graph retrieves facts first, then the model answers from them.</p>
+</header>
+<main>
+  <div class="card">
+    <div class="flow" aria-label="Workflow progress">
+      <span class="step" id="s-start">Question</span><span class="arrow">&rarr;</span>
+      <span class="step" id="s-retrieve">Retrieve</span><span class="arrow">&rarr;</span>
+      <span class="step" id="s-generate">Generate</span><span class="arrow">&rarr;</span>
+      <span class="step" id="s-end">Answer</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <textarea id="q" placeholder="e.g. What is a node in LangGraph?"></textarea>
+    <div class="row">
+      <div id="examples"></div>
+      <button id="ask">Ask</button>
+    </div>
+    <p class="status" id="status"></p>
+  </div>
+
+  <div class="card" id="answer-card" hidden>
+    <h2>Answer</h2>
+    <div class="answer" id="answer"></div>
+  </div>
+
+  <div class="card" id="sources-card" hidden>
+    <h2>Retrieved context</h2>
+    <div id="sources"></div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const steps = ["start", "retrieve", "generate", "end"];
+const examples = ["What is a node in LangGraph?", "What does RAG do?", "What is LangSmith used for?"];
+
+function setStep(active) {            // light up the pipeline
+  steps.forEach((s, i) => {
+    const el = $("s-" + s), idx = steps.indexOf(active);
+    el.className = "step" + (i < idx ? " done" : i === idx ? " active" : "");
+  });
+}
+function reset() { steps.forEach((s) => ($("s-" + s).className = "step")); }
+
+examples.forEach((text) => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = text;
+  b.onclick = () => { $("q").value = text; $("q").focus(); };
+  $("examples").appendChild(b);
+});
+
+async function ask() {
+  const question = $("q").value.trim();
+  if (question.length < 3) { $("status").textContent = "Please type a longer question."; return; }
+  $("ask").disabled = true;
+  $("status").className = "status";
+  $("status").textContent = "First question loads the embedding model, so it can take a little longer.";
+  $("answer-card").hidden = $("sources-card").hidden = true;
+  setStep("retrieve");
+  const timer = setTimeout(() => setStep("generate"), 1200);
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Request failed");
+    $("answer").textContent = data.answer;
+    $("sources").innerHTML = "";
+    data.sources.forEach((s) => {
+      const d = document.createElement("div");
+      d.className = "source"; d.textContent = s;
+      $("sources").appendChild(d);
+    });
+    $("answer-card").hidden = $("sources-card").hidden = false;
+    setStep("end"); $("s-end").className = "step done";
+    $("status").textContent = "";
+  } catch (err) {
+    reset();
+    $("status").className = "status error";
+    $("status").textContent = err.message;
+  } finally {
+    clearTimeout(timer);
+    $("ask").disabled = false;
+  }
+}
+$("ask").onclick = ask;
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) ask(); });
+</script>
+</body>
+</html>
